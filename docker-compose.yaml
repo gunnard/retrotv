@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  retrotv:
+    build: .
+    container_name: retrotv
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./exports:/app/exports
+      - ./guides:/app/guides
+      - ./filler:/app/filler
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - JELLYFIN_URL=${JELLYFIN_URL:-http://host.docker.internal:8096}
+      - PLEX_TOKEN=${PLEX_TOKEN}
+      - PLEX_URL=${PLEX_URL:-http://host.docker.internal:32400}
+      - RETROTV_LOG_LEVEL=INFO
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  retrotv_data:

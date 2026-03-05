@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+venv_old/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+._*
+Thumbs.db
+
+# Project secrets and runtime data
+config.yaml
+data/*.db
+data/*.db-journal
+
+# Exports (generated output)
+exports/
+
+# Filler content (user-provided media)
+filler/*.mp4
+filler/*.mkv
+filler/*.avi
+filler/*.ts
+
+# Environment
+.env
+.env.*

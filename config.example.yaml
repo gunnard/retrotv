@@ -1,0 +1,45 @@
+app:
+  debug: false
+  log_level: INFO
+  data_dir: ./data
+
+database:
+  path: ./data/retrotv.db
+
+jellyfin:
+  enabled: true
+  url: http://localhost:8096
+  api_key: ${JELLYFIN_API_KEY}
+  user_id: ""
+
+plex:
+  enabled: false
+  url: http://localhost:32400
+  token: ${PLEX_TOKEN}
+
+matching:
+  fuzzy_threshold: 70
+  runtime_tolerance_minutes: 5
+  auto_select_confidence: 85
+
+substitution:
+  strategy: runtime_first
+  max_candidates: 5
+  auto_approve_threshold: 0.7
+
+export:
+  output_directory: ./exports
+  ersatztv:
+    channel_prefix: RETRO
+    ffmpeg_profile: default
+  tunarr:
+    jellyfin_source_name: Jellyfin
+    plex_source_name: Plex
+
+web:
+  enabled: true
+  host: 0.0.0.0
+  port: 8080
+
+guides:
+  import_directory: ./guides
