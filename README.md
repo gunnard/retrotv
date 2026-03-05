@@ -3,6 +3,7 @@
 Recreate historical TV channel schedules from the 1970s-2000s using your local media library.
 <img width="1384" height="438" alt="image" src="https://github.com/user-attachments/assets/be42b9b2-04f9-465f-96dd-42fd064d7dd5" />
 <img width="1382" height="740" alt="image" src="https://github.com/user-attachments/assets/f63cff30-58c1-4de1-9553-037e8fde1d62" />
+<img width="1375" height="744" alt="image" src="https://github.com/user-attachments/assets/8426ccf5-a4a0-403b-92c7-f0eeb219889f" />
 
 ## Features
 
