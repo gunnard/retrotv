@@ -17,6 +17,7 @@ class MediaSource(Enum):
     """Source media server."""
     JELLYFIN = "jellyfin"
     PLEX = "plex"
+    EMBY = "emby"
 
 
 @dataclass

@@ -5,7 +5,7 @@ Recreate historical TV channel schedules from the 1970s-2000s using your local m
 ## Features
 
 - **Guide Ingestion**: Import programming guides from JSON, XML/XMLTV, or CSV formats
-- **Library Integration**: Connect to Jellyfin or Plex media servers
+- **Library Integration**: Connect to Jellyfin, Plex, or Emby media servers
 - **Fuzzy Matching**: Automatically match guide entries to your library content
 - **Smart Substitution**: Find replacement content for missing shows based on runtime and genre
 - **Schedule Export**: Export to ErsatzTV or Tunarr format for pseudo-live TV playback
@@ -45,12 +45,21 @@ plex:
   enabled: false
   url: http://localhost:32400
   token: YOUR_PLEX_TOKEN
+
+emby:
+  enabled: false
+  url: http://localhost:8096
+  api_key: YOUR_EMBY_API_KEY
 ```
 
 Or use environment variables:
 ```bash
 export JELLYFIN_API_KEY=your_api_key
 export JELLYFIN_URL=http://localhost:8096
+export PLEX_TOKEN=your_plex_token
+export PLEX_URL=http://localhost:32400
+export EMBY_API_KEY=your_emby_api_key
+export EMBY_URL=http://localhost:8096
 ```
 
 ### Initialize
@@ -175,7 +184,8 @@ retrotv/
 │   └── csv_parser.py
 ├── connectors/         # Media server connectors
 │   ├── jellyfin.py
-│   └── plex.py
+│   ├── plex.py
+│   └── emby.py
 ├── matching/           # Matching engine
 │   ├── fuzzy.py
 │   └── matcher.py
@@ -196,7 +206,7 @@ retrotv/
 ## Requirements
 
 - Python 3.11+
-- Jellyfin or Plex media server
+- Jellyfin, Plex, or Emby media server
 - ErsatzTV or Tunarr for playback (optional)
 
 ## License

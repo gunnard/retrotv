@@ -435,6 +435,33 @@
         </div>
 
         <div class="grid-2 mt-3">
+          <!-- Emby Settings -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">🟢 Emby Connection</h3>
+              <span id="emby-status" class="badge badge-gray">Not configured</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Server URL</label>
+              <input type="url" id="emby-url" class="form-input" placeholder="http://localhost:8096">
+            </div>
+            <div class="form-group">
+              <label class="form-label">API Key</label>
+              <input type="password" id="emby-api-key" class="form-input" placeholder="Enter your Emby API key">
+              <p class="text-sm text-muted mt-1">Find in Emby Dashboard → API Keys</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label">User ID (optional)</label>
+              <input type="text" id="emby-user-id" class="form-input" placeholder="User ID for library access">
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+              <button class="btn btn-secondary" onclick="testEmby()">Test Connection</button>
+              <button class="btn btn-primary" onclick="saveEmby()">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-3">
           <!-- Matching Settings -->
           <div class="card">
             <div class="card-header">

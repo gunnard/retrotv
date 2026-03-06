@@ -74,7 +74,11 @@ def config():
               help="Base URL of your Plex server. Leave blank to skip.")
 @click.option("--plex-token", prompt="Plex Token (optional)", hide_input=True, default="",
               help="Plex authentication token. Leave blank to skip.")
-def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token):
+@click.option("--emby-url", prompt="Emby URL (optional)", default="",
+              help="Base URL of your Emby server. Leave blank to skip.")
+@click.option("--emby-key", prompt="Emby API Key (optional)", hide_input=True, default="",
+              help="Emby API key (Dashboard > API Keys). Leave blank to skip.")
+def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token, emby_url, emby_key):
     """Interactive first-time setup wizard.
 
     Creates the config file, initialises the database, and stores
@@ -91,6 +95,11 @@ def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token):
         cfg.plex.token = plex_token
         cfg.plex.enabled = True
     
+    if emby_url and emby_key:
+        cfg.emby.url = emby_url
+        cfg.emby.api_key = emby_key
+        cfg.emby.enabled = True
+    
     save_config(cfg)
     ensure_directories(cfg)
     init_db(cfg.db_path)
@@ -99,6 +108,7 @@ def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token):
     console.print(f"  Database: {cfg.db_path}")
     console.print(f"  Jellyfin: {'enabled' if cfg.jellyfin.enabled else 'disabled'}")
     console.print(f"  Plex: {'enabled' if cfg.plex.enabled else 'disabled'}")
+    console.print(f"  Emby: {'enabled' if cfg.emby.enabled else 'disabled'}")
 
 
 @config.command("show")
@@ -115,6 +125,7 @@ def config_show(ctx):
     table.add_row("Database", cfg.db_path)
     table.add_row("Jellyfin URL", cfg.jellyfin.url if cfg.jellyfin.enabled else "(disabled)")
     table.add_row("Plex URL", cfg.plex.url if cfg.plex.enabled else "(disabled)")
+    table.add_row("Emby URL", cfg.emby.url if cfg.emby.enabled else "(disabled)")
     table.add_row("Fuzzy Threshold", str(cfg.matching.fuzzy_threshold))
     table.add_row("Export Directory", cfg.export.output_directory)
     table.add_row("Web Port", str(cfg.web.port))
@@ -133,7 +144,7 @@ def library():
 
 
 @library.command("sync")
-@click.option("--source", type=click.Choice(["jellyfin", "plex", "all"]), default="all",
+@click.option("--source", type=click.Choice(["jellyfin", "plex", "emby", "all"]), default="all",
               help="Which media server to sync from. Defaults to all configured servers.")
 @click.pass_context
 def library_sync(ctx, source):
@@ -200,6 +211,29 @@ def library_sync(ctx, source):
                         progress.update(task, description="[red]Plex connection failed")
                 except Exception as e:
                     progress.update(task, description=f"[red]Plex error: {e}")
+            
+            if source in ("emby", "all") and cfg.emby.enabled:
+                task = progress.add_task("Syncing Emby...", total=None)
+                try:
+                    connector = get_connector("emby", {
+                        "url": cfg.emby.url,
+                        "api_key": cfg.emby.api_key,
+                        "user_id": cfg.emby.user_id
+                    })
+                    
+                    if await connector.test_connection():
+                        lib = await connector.sync_library()
+                        results["emby"] = {
+                            "series": lib.total_series,
+                            "movies": lib.total_movies,
+                            "episodes": lib.total_episodes
+                        }
+                        save_library_to_db(lib)
+                        progress.update(task, description="[green]Emby synced!")
+                    else:
+                        progress.update(task, description="[red]Emby connection failed")
+                except Exception as e:
+                    progress.update(task, description=f"[red]Emby error: {e}")
         
         return results
     

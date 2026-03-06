@@ -1236,6 +1236,18 @@ async function loadSettings() {
       plexStatus.className = 'badge badge-gray';
     }
     
+    // Emby
+    document.getElementById('emby-url').value = settings.emby?.url || '';
+    document.getElementById('emby-user-id').value = settings.emby?.user_id || '';
+    const embyStatus = document.getElementById('emby-status');
+    if (settings.emby?.configured) {
+      embyStatus.textContent = 'Connected';
+      embyStatus.className = 'badge badge-green';
+    } else {
+      embyStatus.textContent = 'Not configured';
+      embyStatus.className = 'badge badge-gray';
+    }
+    
     // Matching
     document.getElementById('match-min-score').value = settings.matching?.min_score || 80;
     const titleWeight = (settings.matching?.title_weight || 0.8) * 100;
@@ -1366,6 +1378,56 @@ async function savePlex() {
       body: JSON.stringify({ url, token })
     });
     showToast('Plex settings saved', 'success');
+    loadSettings();
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function testEmby() {
+  const url = document.getElementById('emby-url').value;
+  const apiKey = document.getElementById('emby-api-key').value;
+  
+  if (!url || !apiKey) {
+    showToast('Please enter URL and API key', 'error');
+    return;
+  }
+  
+  try {
+    showToast('Testing connection...', 'info');
+    const result = await api('/settings/emby/test', {
+      method: 'POST',
+      body: JSON.stringify({ url, api_key: apiKey })
+    });
+    
+    if (result.success) {
+      showToast(`Connected to ${result.server_name} (v${result.version})`, 'success');
+      document.getElementById('emby-status').textContent = 'Connected';
+      document.getElementById('emby-status').className = 'badge badge-green';
+    } else {
+      showToast(`Connection failed: ${result.error}`, 'error');
+    }
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function saveEmby() {
+  const url = document.getElementById('emby-url').value;
+  const apiKey = document.getElementById('emby-api-key').value;
+  const userId = document.getElementById('emby-user-id').value;
+  
+  if (!url || !apiKey) {
+    showToast('Please enter URL and API key', 'error');
+    return;
+  }
+  
+  try {
+    await api('/settings/emby', {
+      method: 'POST',
+      body: JSON.stringify({ url, api_key: apiKey, user_id: userId || null })
+    });
+    showToast('Emby settings saved', 'success');
     loadSettings();
   } catch (error) {
     showToast(error.message, 'error');
@@ -1581,6 +1643,8 @@ window.testJellyfin = testJellyfin;
 window.saveJellyfin = saveJellyfin;
 window.testPlex = testPlex;
 window.savePlex = savePlex;
+window.testEmby = testEmby;
+window.saveEmby = saveEmby;
 window.testErsatzTV = testErsatzTV;
 window.saveErsatzTV = saveErsatzTV;
 window.saveMatchingSettings = saveMatchingSettings;

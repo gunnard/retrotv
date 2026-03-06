@@ -23,6 +23,12 @@ class PlexSettings(BaseModel):
     token: str
 
 
+class EmbySettings(BaseModel):
+    url: str
+    api_key: str
+    user_id: Optional[str] = None
+
+
 class MatchingSettings(BaseModel):
     min_score: int = 80
     year_weight: float = 0.2
@@ -43,6 +49,7 @@ class ErsatzTVSettings(BaseModel):
 class AppSettings(BaseModel):
     jellyfin: Optional[JellyfinSettings] = None
     plex: Optional[PlexSettings] = None
+    emby: Optional[EmbySettings] = None
     matching: Optional[MatchingSettings] = None
     export: Optional[ExportSettings] = None
     ersatztv: Optional[ErsatzTVSettings] = None
@@ -69,6 +76,7 @@ async def get_settings():
     
     jellyfin_configured = bool(config.get('jellyfin', {}).get('api_key'))
     plex_configured = bool(config.get('plex', {}).get('token'))
+    emby_configured = bool(config.get('emby', {}).get('api_key'))
     
     return {
         "jellyfin": {
@@ -79,6 +87,11 @@ async def get_settings():
         "plex": {
             "url": config.get('plex', {}).get('url', ''),
             "configured": plex_configured
+        },
+        "emby": {
+            "url": config.get('emby', {}).get('url', ''),
+            "configured": emby_configured,
+            "user_id": config.get('emby', {}).get('user_id', '')
         },
         "matching": config.get('matching', {
             "min_score": 80,
@@ -182,6 +195,49 @@ async def test_plex_connection(settings: PlexSettings):
                     "success": True,
                     "server_name": server_info.get("friendlyName", "Unknown"),
                     "version": server_info.get("version", "Unknown")
+                }
+            else:
+                return {"success": False, "error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/emby")
+async def save_emby_settings(settings: EmbySettings):
+    """Save Emby connection settings."""
+    config = load_config_file()
+    
+    if 'emby' not in config:
+        config['emby'] = {}
+    
+    config['emby']['url'] = settings.url.rstrip('/')
+    config['emby']['api_key'] = settings.api_key
+    if settings.user_id:
+        config['emby']['user_id'] = settings.user_id
+    
+    save_config_file(config)
+    
+    return {"success": True, "message": "Emby settings saved"}
+
+
+@router.post("/emby/test")
+async def test_emby_connection(settings: EmbySettings):
+    """Test Emby connection."""
+    import httpx
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            url = f"{settings.url.rstrip('/')}/System/Info/Public"
+            headers = {"X-Emby-Token": settings.api_key}
+            
+            response = await client.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                info = response.json()
+                return {
+                    "success": True,
+                    "server_name": info.get("ServerName", "Unknown"),
+                    "version": info.get("Version", "Unknown")
                 }
             else:
                 return {"success": False, "error": f"HTTP {response.status_code}"}
@@ -389,6 +445,10 @@ async def reset_settings():
         "plex": {
             "url": "",
             "token": ""
+        },
+        "emby": {
+            "url": "",
+            "api_key": ""
         },
         "matching": {
             "min_score": 80,

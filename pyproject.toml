@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "retrotv"
-version = "1.0.0"
+version = "1.1.0"
 description = "Recreate historical TV channel schedules"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,7 +12,7 @@ license = {text = "MIT"}
 authors = [
     {name = "RetroTV Project"}
 ]
-keywords = ["tv", "jellyfin", "plex", "ersatztv", "tunarr", "schedule"]
+keywords = ["tv", "jellyfin", "plex", "emby", "ersatztv", "tunarr", "schedule"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
