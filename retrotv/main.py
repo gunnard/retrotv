@@ -7,7 +7,7 @@ from retrotv.db import init_db
 
 
 @click.group()
-@click.version_option(version="1.0.0-mvp")
+@click.version_option(version="1.1.0")
 def main():
     """RetroTV Channel Builder - Recreate historical TV schedules."""
     pass
@@ -54,11 +54,12 @@ def cli():
     pass
 
 
-from retrotv.cli import config as config_cmd, library, guide, schedule
+from retrotv.cli import config as config_cmd, library, guide, schedule, quick_build
 cli.add_command(config_cmd, name="config")
 cli.add_command(library)
 cli.add_command(guide)
 cli.add_command(schedule)
+cli.add_command(quick_build, name="quick-build")
 
 
 if __name__ == "__main__":

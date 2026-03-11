@@ -23,6 +23,8 @@ class SubstitutionEngine:
         self.library = library
         self.strategy = strategy
         self.auto_approve_threshold = auto_approve_threshold
+        self._all_episodes: Optional[List[MediaItem]] = None
+        self._all_movies: Optional[List[MediaItem]] = None
     
     def find_substitutes(
         self, 
@@ -62,16 +64,16 @@ class SubstitutionEngine:
     
     def _get_all_eligible_items(self, slot: ScheduleSlot) -> List[MediaItem]:
         """Get all items eligible for substitution."""
-        items = []
-        
-        for series in self.library.series.values():
-            items.extend(series.get_all_episodes())
-        
+        if self._all_episodes is None:
+            self._all_episodes = []
+            for series in self.library.series.values():
+                self._all_episodes.extend(series.get_all_episodes())
+            self._all_movies = list(self.library.movies.values())
+
         expected_mins = slot.original_entry.original.calculated_duration.total_seconds() / 60
         if expected_mins >= 60:
-            items.extend(self.library.movies.values())
-        
-        return items
+            return self._all_episodes + self._all_movies
+        return list(self._all_episodes)
     
     def _score_candidate(
         self,

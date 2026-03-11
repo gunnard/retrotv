@@ -11,7 +11,7 @@ from pathlib import Path
 from retrotv.config import load_config
 from retrotv.db import get_db
 from retrotv.ingestion import get_parser_for_file, TitleNormalizer
-from retrotv.services import save_guide_to_db, list_guides_from_db
+from retrotv.services import save_guide_to_db, list_guides_from_db, delete_guide_from_db
 from uuid import uuid4
 
 router = APIRouter()
@@ -69,13 +69,13 @@ async def get_guide(guide_id: str):
         raise HTTPException(status_code=404, detail="Guide not found")
     
     return GuideResponse(
-        id=row[0],
-        name=row[1],
-        channel_name=row[2],
-        broadcast_date=row[3],
-        decade=row[4],
-        entry_count=row[5],
-        source_file=row[6]
+        id=row["id"],
+        name=row["name"],
+        channel_name=row["channel_name"],
+        broadcast_date=row["broadcast_date"],
+        decade=row["decade"],
+        entry_count=row["entry_count"],
+        source_file=row["source_file"]
     )
 
 
@@ -94,7 +94,7 @@ async def update_guide(guide_id: str, request: UpdateGuideRequest):
         if not guide:
             raise HTTPException(status_code=404, detail="Guide not found")
         
-        cursor.execute("UPDATE guides SET name = ? WHERE id = ?", (request.name, guide[0]))
+        cursor.execute("UPDATE guides SET name = ? WHERE id = ?", (request.name, guide["id"]))
         conn.commit()
     
     return {"success": True, "message": "Guide updated"}
@@ -115,21 +115,21 @@ async def get_guide_entries(guide_id: str):
             SELECT id, title, normalized_title, start_time, end_time, duration_minutes,
                    episode_title, season_number, episode_number, genre
             FROM guide_entries WHERE guide_id = ? ORDER BY start_time
-        """, (guide[0],))
+        """, (guide["id"],))
         rows = cursor.fetchall()
     
     return [
         GuideEntryResponse(
-            id=row[0],
-            title=row[1],
-            normalized_title=row[2],
-            start_time=row[3],
-            end_time=row[4],
-            duration_minutes=row[5],
-            episode_title=row[6],
-            season_number=row[7],
-            episode_number=row[8],
-            genre=row[9]
+            id=row["id"],
+            title=row["title"],
+            normalized_title=row["normalized_title"],
+            start_time=row["start_time"],
+            end_time=row["end_time"],
+            duration_minutes=row["duration_minutes"],
+            episode_title=row["episode_title"],
+            season_number=row["season_number"],
+            episode_number=row["episode_number"],
+            genre=row["genre"]
         )
         for row in rows
     ]
@@ -172,18 +172,9 @@ async def import_guide(file: UploadFile = File(...)):
 
 
 @router.delete("/{guide_id}")
-async def delete_guide(guide_id: str):
-    """Delete a guide."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM guides WHERE id LIKE ?", (f"{guide_id}%",))
-        guide = cursor.fetchone()
-        
-        if not guide:
-            raise HTTPException(status_code=404, detail="Guide not found")
-        
-        cursor.execute("DELETE FROM guide_entries WHERE guide_id = ?", (guide[0],))
-        cursor.execute("DELETE FROM guides WHERE id = ?", (guide[0],))
-        conn.commit()
-    
-    return {"status": "deleted", "id": guide[0]}
+async def delete_guide(guide_id: str, cascade: bool = False):
+    """Delete a guide. Pass ?cascade=true to also delete dependent schedules."""
+    deleted_id = delete_guide_from_db(guide_id, cascade=cascade)
+    if not deleted_id:
+        raise HTTPException(status_code=404, detail="Guide not found")
+    return {"status": "deleted", "id": deleted_id}

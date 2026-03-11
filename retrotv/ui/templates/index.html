@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+  <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="sidebar-backdrop" onclick="closeSidebar()"></div>
+
   <div class="app-layout">
     <!-- Sidebar -->
     <aside class="sidebar">
@@ -262,7 +267,10 @@
                 Include full day (daytime + late night)
               </label>
             </div>
-            <button class="btn btn-primary" onclick="generateFromTemplate()">Generate Schedule</button>
+            <div style="display:flex;gap:0.5rem;">
+              <button class="btn btn-primary" onclick="generateFromTemplate()">Generate Schedule</button>
+              <button class="btn btn-secondary" onclick="generateFullWeek()">Generate Full Week</button>
+            </div>
           </div>
           
           <!-- Live Preview -->
@@ -310,6 +318,18 @@
             <button class="btn btn-sm btn-secondary mt-1" onclick="addCustomEntry()">+ Add Entry</button>
           </div>
           <button class="btn btn-primary" onclick="buildCustomGuide()">Build Guide</button>
+        </div>
+
+        <!-- Template Browser -->
+        <div class="card mt-3">
+          <div class="card-header">
+            <h3 class="card-title">📋 Template Browser</h3>
+            <span class="text-sm text-muted" id="template-count"></span>
+          </div>
+          <p class="text-muted mb-2">Browse all available network/year/day template combinations.</p>
+          <div id="template-browser">
+            <p class="text-muted">Loading templates...</p>
+          </div>
         </div>
 
         <!-- Shows Database -->
@@ -644,9 +664,20 @@
           <p class="text-sm text-muted mt-1">Pick random episodes instead of sequential order.</p>
         </div>
       </div>
-      <div class="modal-footer">
+      <div id="create-schedule-progress" style="display:none;" class="mb-2">
+        <div style="display:flex;align-items:center;gap:0.75rem;padding:0 1.5rem 1rem;">
+          <div class="spinner"></div>
+          <div style="flex:1;">
+            <p id="create-schedule-progress-text" class="text-sm">Building schedule...</p>
+            <div class="progress-bar mt-1">
+              <div id="create-schedule-progress-bar" class="progress-fill" style="width:0%;transition:width 0.5s;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="create-schedule-footer">
         <button class="btn btn-secondary" onclick="closeCreateScheduleModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="confirmCreateSchedule()">Create Schedule</button>
+        <button class="btn btn-primary" id="create-schedule-btn" onclick="confirmCreateSchedule()">Create Schedule</button>
       </div>
     </div>
   </div>
@@ -660,6 +691,7 @@
       </div>
       <div class="modal-body">
         <div id="schedule-summary" class="mb-2" style="display:flex;gap:1rem;"></div>
+        <div id="schedule-timeline" class="mb-2"></div>
         <div class="table-container" style="max-height:450px;overflow-y:auto;">
           <table>
             <thead>

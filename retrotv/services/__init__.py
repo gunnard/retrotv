@@ -15,6 +15,8 @@ from retrotv.services.guide_service import (
     save_guide_to_db,
     load_guide_from_db,
     list_guides_from_db,
+    delete_guide_from_db,
+    count_schedules_for_guide,
 )
 from retrotv.services.filler_service import (
     scan_filler_directory,
@@ -41,6 +43,8 @@ __all__ = [
     "save_guide_to_db",
     "load_guide_from_db",
     "list_guides_from_db",
+    "delete_guide_from_db",
+    "count_schedules_for_guide",
     "list_schedules_from_db",
     "delete_schedule_from_db",
     "scan_filler_directory",

@@ -19,33 +19,33 @@ def load_library_from_db() -> MediaLibrary:
 
         cursor.execute("SELECT * FROM media_items WHERE media_type = 'episode'")
         for row in cursor.fetchall():
-            series_title = row[10] or row[3]
-            normalized = row[4]
+            series_title = row["series_title"] or row["title"]
+            normalized = row["normalized_title"]
 
             if normalized not in library.series:
                 library.series[normalized] = Series(
-                    id=row[9] or row[0],
-                    source=MediaSource(row[1]),
+                    id=row["series_id"] or row["id"],
+                    source=MediaSource(row["source"]),
                     title=series_title,
                     normalized_title=normalized,
-                    genres=json.loads(row[7]) if row[7] else [],
+                    genres=json.loads(row["genres"]) if row["genres"] else [],
                 )
 
             ep = Episode(
-                id=row[0],
-                source=MediaSource(row[1]),
+                id=row["id"],
+                source=MediaSource(row["source"]),
                 title=series_title,
                 normalized_title=normalized,
                 media_type=MediaType.EPISODE,
-                runtime_seconds=row[5] or 0,
-                year=row[6],
-                genres=json.loads(row[7]) if row[7] else [],
-                file_path=row[8],
-                series_id=row[9] or "",
+                runtime_seconds=row["runtime_seconds"] or 0,
+                year=row["year"],
+                genres=json.loads(row["genres"]) if row["genres"] else [],
+                file_path=row["file_path"],
+                series_id=row["series_id"] or "",
                 series_title=series_title,
-                season_number=row[11] or 0,
-                episode_number=row[12] or 0,
-                episode_title=row[13],
+                season_number=row["season_number"] or 0,
+                episode_number=row["episode_number"] or 0,
+                episode_title=row["episode_title"],
             )
 
             season = ep.season_number
@@ -61,15 +61,15 @@ def load_library_from_db() -> MediaLibrary:
         cursor.execute("SELECT * FROM media_items WHERE media_type = 'movie'")
         for row in cursor.fetchall():
             movie = Movie(
-                id=row[0],
-                source=MediaSource(row[1]),
-                title=row[3],
-                normalized_title=row[4],
+                id=row["id"],
+                source=MediaSource(row["source"]),
+                title=row["title"],
+                normalized_title=row["normalized_title"],
                 media_type=MediaType.MOVIE,
-                runtime_seconds=row[5] or 0,
-                year=row[6],
-                genres=json.loads(row[7]) if row[7] else [],
-                file_path=row[8],
+                runtime_seconds=row["runtime_seconds"] or 0,
+                year=row["year"],
+                genres=json.loads(row["genres"]) if row["genres"] else [],
+                file_path=row["file_path"],
             )
             library.movies[movie.normalized_title] = movie
 
@@ -131,14 +131,4 @@ def find_item_in_library(
     library: MediaLibrary, item_id: str
 ) -> Optional[MediaItem]:
     """Find a media item by ID across all series episodes and movies."""
-    for series in library.series.values():
-        for episodes in series.seasons.values():
-            for ep in episodes:
-                if ep.id == item_id:
-                    return ep
-
-    for movie in library.movies.values():
-        if movie.id == item_id:
-            return movie
-
-    return None
+    return library.find_by_id(item_id)

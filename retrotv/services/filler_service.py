@@ -136,12 +136,12 @@ def list_filler_items(
 
         return [
             {
-                "id": row[0],
-                "file_path": row[1],
-                "duration_seconds": row[2],
-                "category": row[3],
-                "decade": row[4],
-                "enabled": bool(row[5]),
+                "id": row["id"],
+                "file_path": row["file_path"],
+                "duration_seconds": row["duration_seconds"],
+                "category": row["category"],
+                "decade": row["decade"],
+                "enabled": bool(row["enabled"]),
             }
             for row in cursor.fetchall()
         ]
@@ -176,13 +176,13 @@ def load_filler_as_media_items(
         items = []
         for row in cursor.fetchall():
             items.append(MediaItem(
-                id=row[0],
+                id=row["id"],
                 source=MediaSource.JELLYFIN,
-                title=Path(row[1]).stem,
-                normalized_title=Path(row[1]).stem.lower(),
+                title=Path(row["file_path"]).stem,
+                normalized_title=Path(row["file_path"]).stem.lower(),
                 media_type=MediaType.EPISODE,
-                runtime_seconds=row[2],
-                file_path=row[1],
+                runtime_seconds=row["duration_seconds"],
+                file_path=row["file_path"],
             ))
 
         return items
@@ -212,19 +212,19 @@ def get_filler_stats() -> dict:
         row = cursor.fetchone()
 
         cursor.execute("""
-            SELECT category, COUNT(*), SUM(duration_seconds)
+            SELECT category, COUNT(*) AS item_count, SUM(duration_seconds) AS sum_seconds
             FROM filler_items WHERE enabled = 1
             GROUP BY category ORDER BY category
         """)
         by_category = [
-            {"category": r[0] or "uncategorized", "count": r[1], "total_seconds": r[2]}
+            {"category": r["category"] or "uncategorized", "count": r["item_count"], "total_seconds": r["sum_seconds"]}
             for r in cursor.fetchall()
         ]
 
         return {
-            "total_items": row[0],
-            "total_seconds": row[1],
-            "total_minutes": row[1] // 60,
-            "categories": row[2],
+            "total_items": row["total"],
+            "total_seconds": row["total_seconds"],
+            "total_minutes": row["total_seconds"] // 60,
+            "categories": row["categories"],
             "by_category": by_category,
         }

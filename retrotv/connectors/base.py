@@ -1,11 +1,14 @@
 """Abstract base class for media server connectors."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from datetime import datetime
 
 from retrotv.models.media import MediaLibrary, Series, Movie, Episode, MediaSource
 from retrotv.ingestion.normalizer import TitleNormalizer
+
+MAX_CONCURRENT_EPISODE_FETCHES = 8
 
 
 class BaseMediaConnector(ABC):
@@ -43,31 +46,50 @@ class BaseMediaConnector(ABC):
         """Get detailed info for a specific item."""
         pass
     
+    async def _fetch_episodes_throttled(
+        self,
+        series: Series,
+        semaphore: asyncio.Semaphore,
+    ) -> tuple:
+        """Fetch episodes for a single series, respecting the semaphore."""
+        async with semaphore:
+            episodes = await self.get_series_episodes(series.id)
+        return series, episodes
+
     async def sync_library(self) -> MediaLibrary:
-        """Full library sync - series and movies."""
+        """Full library sync - series and movies with batched episode fetches."""
         library = MediaLibrary(source=self.source)
         
-        series_list = await self.get_all_series()
+        series_list, movies = await asyncio.gather(
+            self.get_all_series(),
+            self.get_all_movies(),
+        )
+
         for series in series_list:
-            normalized = TitleNormalizer.normalize(series.title)
-            series.normalized_title = normalized
-            
-            episodes = await self.get_series_episodes(series.id)
+            series.normalized_title = TitleNormalizer.normalize(series.title)
+
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_EPISODE_FETCHES)
+        episode_results = await asyncio.gather(
+            *(
+                self._fetch_episodes_throttled(series, semaphore)
+                for series in series_list
+            )
+        )
+
+        for series, episodes in episode_results:
+            normalized = series.normalized_title
             for ep in episodes:
                 ep.normalized_title = normalized
                 season = ep.season_number
                 if season not in series.seasons:
                     series.seasons[season] = []
                 series.seasons[season].append(ep)
-            
             series.total_episodes = sum(len(eps) for eps in series.seasons.values())
             library.series[normalized] = series
         
-        movies = await self.get_all_movies()
         for movie in movies:
-            normalized = TitleNormalizer.normalize(movie.title)
-            movie.normalized_title = normalized
-            library.movies[normalized] = movie
+            movie.normalized_title = TitleNormalizer.normalize(movie.title)
+            library.movies[movie.normalized_title] = movie
         
         library.last_synced = datetime.utcnow().isoformat()
         self._library_cache = library

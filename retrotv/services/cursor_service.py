@@ -20,13 +20,13 @@ def get_cursor(series_normalized_title: str) -> Optional[dict]:
         if not row:
             return None
         return {
-            "id": row[0],
-            "series_normalized_title": row[1],
-            "series_title": row[2],
-            "last_season": row[3],
-            "last_episode": row[4],
-            "last_used_at": row[5],
-            "total_played": row[6],
+            "id": row["id"],
+            "series_normalized_title": row["series_normalized_title"],
+            "series_title": row["series_title"],
+            "last_season": row["last_season"],
+            "last_episode": row["last_episode"],
+            "last_used_at": row["last_used_at"],
+            "total_played": row["total_played"],
         }
 
 
@@ -136,13 +136,13 @@ def list_cursors() -> List[dict]:
         )
         return [
             {
-                "id": row[0],
-                "series_normalized_title": row[1],
-                "series_title": row[2],
-                "last_season": row[3],
-                "last_episode": row[4],
-                "last_used_at": row[5],
-                "total_played": row[6],
+                "id": row["id"],
+                "series_normalized_title": row["series_normalized_title"],
+                "series_title": row["series_title"],
+                "last_season": row["last_season"],
+                "last_episode": row["last_episode"],
+                "last_used_at": row["last_used_at"],
+                "total_played": row["total_played"],
             }
             for row in cursor.fetchall()
         ]

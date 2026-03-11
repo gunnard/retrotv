@@ -69,71 +69,65 @@ def load_schedule_from_db(schedule_id: str) -> Optional[ChannelSchedule]:
             return None
 
         schedule = ChannelSchedule(
-            schedule_id=row[0],
-            channel_name=row[1],
-            broadcast_date=datetime.fromisoformat(row[2]),
-            decade=row[3],
-            guide_id=row[4],
-            total_slots=row[5],
-            matched_count=row[6],
-            partial_count=row[7],
-            substituted_count=row[8],
-            missing_count=row[9],
-            total_ad_gap_minutes=row[10],
+            schedule_id=row["id"],
+            channel_name=row["channel_name"],
+            broadcast_date=datetime.fromisoformat(row["broadcast_date"]),
+            decade=row["decade"],
+            guide_id=row["guide_id"],
+            total_slots=row["total_slots"],
+            matched_count=row["matched_count"],
+            partial_count=row["partial_count"],
+            substituted_count=row["substituted_count"],
+            missing_count=row["missing_count"],
+            total_ad_gap_minutes=row["total_ad_gap_minutes"],
         )
 
         cursor.execute(
             "SELECT * FROM schedule_slots WHERE schedule_id = ? ORDER BY slot_order",
-            (row[0],),
+            (row["id"],),
         )
         slot_rows = cursor.fetchall()
 
     library = load_library_from_db()
 
     for slot_row in slot_rows:
-        # Column indices based on schema:
-        # 0=id, 1=schedule_id, 2=guide_entry_id, 3=slot_order,
-        # 4=scheduled_start, 5=scheduled_end, 6=match_status,
-        # 7=matched_item_id, 8=match_confidence, 9=substituted_item_id,
-        # 10=substitution_reason, 11=user_approved,
-        # 12=expected_runtime_seconds, 13=actual_runtime_seconds, 14=ad_gap_seconds
         dummy_entry = GuideEntry(title="", start_time=datetime.now())
         normalized = NormalizedGuideEntry(
             original=dummy_entry, normalized_title=""
         )
 
         matched_item = None
-        if slot_row[7]:
-            matched_item = find_item_in_library(library, slot_row[7])
+        if slot_row["matched_item_id"]:
+            matched_item = find_item_in_library(library, slot_row["matched_item_id"])
 
         substituted_item = None
-        if slot_row[9]:
-            substituted_item = find_item_in_library(library, slot_row[9])
+        if slot_row["substituted_item_id"]:
+            substituted_item = find_item_in_library(library, slot_row["substituted_item_id"])
 
         scheduled_start = (
-            datetime.fromisoformat(slot_row[4])
-            if slot_row[4]
+            datetime.fromisoformat(slot_row["scheduled_start"])
+            if slot_row["scheduled_start"]
             else datetime.now()
         )
         scheduled_end = (
-            datetime.fromisoformat(slot_row[5])
-            if slot_row[5]
+            datetime.fromisoformat(slot_row["scheduled_end"])
+            if slot_row["scheduled_end"]
             else datetime.now()
         )
 
         slot = ScheduleSlot(
-            slot_id=slot_row[0],
+            slot_id=slot_row["id"],
             original_entry=normalized,
             scheduled_start=scheduled_start,
             scheduled_end=scheduled_end,
-            match_status=MatchStatus(slot_row[6]),
+            match_status=MatchStatus(slot_row["match_status"]),
             matched_item=matched_item,
-            match_confidence=slot_row[8] or 0,
+            match_confidence=slot_row["match_confidence"] or 0,
             substituted_item=substituted_item,
-            substitution_reason=slot_row[10],
-            expected_runtime_seconds=slot_row[12] or 0,
-            actual_runtime_seconds=slot_row[13] or 0,
-            ad_gap_seconds=slot_row[14] or 0,
+            substitution_reason=slot_row["substitution_reason"],
+            expected_runtime_seconds=slot_row["expected_runtime_seconds"] or 0,
+            actual_runtime_seconds=slot_row["actual_runtime_seconds"] or 0,
+            ad_gap_seconds=slot_row["ad_gap_seconds"] or 0,
         )
         schedule.slots.append(slot)
 
@@ -154,15 +148,15 @@ def list_schedules_from_db() -> List[dict]:
 
     results = []
     for row in rows:
-        total = row[4] or 1
-        filled = (row[5] or 0) + (row[6] or 0) + (row[7] or 0)
+        total = row["total_slots"] or 1
+        filled = (row["matched_count"] or 0) + (row["partial_count"] or 0) + (row["substituted_count"] or 0)
         coverage = (filled / total) * 100 if total > 0 else 0
         results.append({
-            "id": row[0], "channel_name": row[1],
-            "broadcast_date": row[2], "decade": row[3],
-            "total_slots": row[4], "matched_count": row[5],
-            "partial_count": row[6], "substituted_count": row[7],
-            "missing_count": row[8], "total_ad_gap_minutes": row[9],
+            "id": row["id"], "channel_name": row["channel_name"],
+            "broadcast_date": row["broadcast_date"], "decade": row["decade"],
+            "total_slots": row["total_slots"], "matched_count": row["matched_count"],
+            "partial_count": row["partial_count"], "substituted_count": row["substituted_count"],
+            "missing_count": row["missing_count"], "total_ad_gap_minutes": row["total_ad_gap_minutes"],
             "coverage_percent": round(coverage, 1),
         })
 
@@ -181,7 +175,7 @@ def delete_schedule_from_db(schedule_id: str) -> Optional[str]:
         if not row:
             return None
 
-        full_id = row[0]
+        full_id = row["id"]
         cursor.execute("DELETE FROM schedule_slots WHERE schedule_id = ?", (full_id,))
         cursor.execute("DELETE FROM schedules WHERE id = ?", (full_id,))
         conn.commit()

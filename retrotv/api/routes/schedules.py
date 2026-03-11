@@ -96,21 +96,21 @@ async def get_schedule(schedule_id: str):
     if not row:
         raise HTTPException(status_code=404, detail="Schedule not found")
     
-    total = row[4] or 1
-    filled = (row[5] or 0) + (row[6] or 0) + (row[7] or 0)
+    total = row["total_slots"] or 1
+    filled = (row["matched_count"] or 0) + (row["partial_count"] or 0) + (row["substituted_count"] or 0)
     coverage = (filled / total) * 100 if total > 0 else 0
     
     return ScheduleResponse(
-        id=row[0],
-        channel_name=row[1],
-        broadcast_date=row[2],
-        decade=row[3],
-        total_slots=row[4],
-        matched_count=row[5],
-        partial_count=row[6],
-        substituted_count=row[7],
-        missing_count=row[8],
-        total_ad_gap_minutes=row[9],
+        id=row["id"],
+        channel_name=row["channel_name"],
+        broadcast_date=row["broadcast_date"],
+        decade=row["decade"],
+        total_slots=row["total_slots"],
+        matched_count=row["matched_count"],
+        partial_count=row["partial_count"],
+        substituted_count=row["substituted_count"],
+        missing_count=row["missing_count"],
+        total_ad_gap_minutes=row["total_ad_gap_minutes"],
         coverage_percent=round(coverage, 1)
     )
 
@@ -136,33 +136,33 @@ async def get_schedule_slots(schedule_id: str):
             LEFT JOIN guide_entries ge ON ss.guide_entry_id = ge.id
             LEFT JOIN media_items mi ON ss.matched_item_id = mi.id OR ss.substituted_item_id = mi.id
             WHERE ss.schedule_id = ? ORDER BY ss.slot_order
-        """, (sched[0],))
+        """, (sched["id"],))
         rows = cursor.fetchall()
     
     results = []
     for row in rows:
-        original_title = row[12] or "Unknown"
+        original_title = row["original_title"] or "Unknown"
         matched_title = None
-        if row[13]:
-            matched_title = row[13]
-            if row[14]:
-                matched_title = f"{row[13]} - {row[14]}"
+        if row["matched_title"]:
+            matched_title = row["matched_title"]
+            if row["matched_episode"]:
+                matched_title = f"{row['matched_title']} - {row['matched_episode']}"
         
         results.append(SlotResponse(
-            id=row[0],
-            slot_order=row[1],
-            scheduled_start=row[2],
-            scheduled_end=row[3],
+            id=row["id"],
+            slot_order=row["slot_order"],
+            scheduled_start=row["scheduled_start"],
+            scheduled_end=row["scheduled_end"],
             original_title=original_title,
             matched_title=matched_title,
-            match_status=row[4],
-            matched_item_id=row[5],
-            match_confidence=row[6] or 0,
-            substituted_item_id=row[7],
-            substitution_reason=row[8],
-            expected_runtime_seconds=row[9] or 0,
-            actual_runtime_seconds=row[10] or 0,
-            ad_gap_seconds=row[11] or 0
+            match_status=row["match_status"],
+            matched_item_id=row["matched_item_id"],
+            match_confidence=row["match_confidence"] or 0,
+            substituted_item_id=row["substituted_item_id"],
+            substitution_reason=row["substitution_reason"],
+            expected_runtime_seconds=row["expected_runtime_seconds"] or 0,
+            actual_runtime_seconds=row["actual_runtime_seconds"] or 0,
+            ad_gap_seconds=row["ad_gap_seconds"] or 0
         ))
     
     return results
@@ -188,8 +188,8 @@ async def get_substitute_candidates(slot_id: str):
         if not slot_row:
             raise HTTPException(status_code=404, detail="Slot not found")
         
-        expected_runtime = slot_row[1] or 1800
-        expected_genre = slot_row[2]
+        expected_runtime = slot_row["expected_runtime_seconds"] or 1800
+        expected_genre = slot_row["genre"]
         expected_minutes = expected_runtime // 60
         
         # Find candidates from media_items
@@ -207,9 +207,9 @@ async def get_substitute_candidates(slot_id: str):
         
         candidates = []
         for row in cursor.fetchall():
-            runtime_seconds = row[3] or 0
+            runtime_seconds = row["runtime_seconds"] or 0
             runtime_minutes = runtime_seconds // 60
-            genres = json.loads(row[4]) if row[4] else []
+            genres = json.loads(row["genres"]) if row["genres"] else []
             
             # Calculate score
             runtime_diff = abs(runtime_minutes - expected_minutes)
@@ -223,9 +223,9 @@ async def get_substitute_candidates(slot_id: str):
             score = (runtime_score * 0.7) + (genre_score * 0.3)
             
             candidates.append(CandidateResponse(
-                media_item_id=row[0],
-                title=row[1],
-                episode_title=row[2],
+                media_item_id=row["id"],
+                title=row["title"],
+                episode_title=row["episode_title"],
                 runtime_minutes=runtime_minutes,
                 score=score,
                 genres=genres
@@ -250,7 +250,7 @@ async def apply_substitute(slot_id: str, request: SubstituteRequest):
         if not slot_row:
             raise HTTPException(status_code=404, detail="Slot not found")
         
-        schedule_id = slot_row[1]
+        schedule_id = slot_row["schedule_id"]
         
         # Get media item info
         cursor.execute("SELECT id, title, runtime_seconds FROM media_items WHERE id = ?", 
@@ -259,7 +259,7 @@ async def apply_substitute(slot_id: str, request: SubstituteRequest):
         if not media_row:
             raise HTTPException(status_code=404, detail="Media item not found")
         
-        actual_runtime = media_row[2] or 0
+        actual_runtime = media_row["runtime_seconds"] or 0
         
         # Update slot
         cursor.execute("""
@@ -281,7 +281,7 @@ async def apply_substitute(slot_id: str, request: SubstituteRequest):
         
         conn.commit()
     
-    return {"status": "ok", "message": f"Substituted with {media_row[1]}"}
+    return {"status": "ok", "message": f"Substituted with {media_row['title']}"}
 
 
 @router.post("", response_model=ScheduleResponse)

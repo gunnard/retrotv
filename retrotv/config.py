@@ -28,6 +28,15 @@ class PlexConfig:
 
 
 @dataclass
+class EmbyConfig:
+    """Emby server configuration."""
+    enabled: bool = False
+    url: str = "http://localhost:8096"
+    api_key: str = ""
+    user_id: str = ""
+
+
+@dataclass
 class MatchingConfig:
     """Matching algorithm configuration."""
     fuzzy_threshold: int = 70
@@ -80,6 +89,7 @@ class AppConfig:
     filler_dir: str = "./filler"
     jellyfin: JellyfinConfig = field(default_factory=JellyfinConfig)
     plex: PlexConfig = field(default_factory=PlexConfig)
+    emby: EmbyConfig = field(default_factory=EmbyConfig)
     matching: MatchingConfig = field(default_factory=MatchingConfig)
     substitution: SubstitutionConfig = field(default_factory=SubstitutionConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
@@ -126,6 +136,15 @@ def _parse_yaml_config(data: dict) -> AppConfig:
             token=_resolve_env_vars(px.get("token", ""))
         )
     
+    if "emby" in data:
+        eb = data["emby"]
+        config.emby = EmbyConfig(
+            enabled=eb.get("enabled", False),
+            url=eb.get("url", "http://localhost:8096"),
+            api_key=_resolve_env_vars(eb.get("api_key", "")),
+            user_id=eb.get("user_id", ""),
+        )
+
     if "matching" in data:
         m = data["matching"]
         config.matching = MatchingConfig(
@@ -194,6 +213,11 @@ def _apply_env_overrides(config: AppConfig) -> AppConfig:
         config.plex.url = os.getenv("PLEX_URL", "")
     if os.getenv("PLEX_TOKEN"):
         config.plex.token = os.getenv("PLEX_TOKEN", "")
+    if os.getenv("EMBY_URL"):
+        config.emby.url = os.getenv("EMBY_URL", "")
+    if os.getenv("EMBY_API_KEY"):
+        config.emby.api_key = os.getenv("EMBY_API_KEY", "")
+        config.emby.enabled = True
     if os.getenv("ERSATZTV_URL"):
         config.ersatztv.url = os.getenv("ERSATZTV_URL", "")
         config.ersatztv.enabled = True
@@ -238,6 +262,12 @@ def save_config(config: AppConfig, config_path: str = "config.yaml"):
             "enabled": config.plex.enabled,
             "url": config.plex.url,
             "token": "${PLEX_TOKEN}"
+        },
+        "emby": {
+            "enabled": config.emby.enabled,
+            "url": config.emby.url,
+            "api_key": "${EMBY_API_KEY}",
+            "user_id": config.emby.user_id,
         },
         "matching": {
             "fuzzy_threshold": config.matching.fuzzy_threshold,

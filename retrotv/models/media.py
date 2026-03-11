@@ -105,6 +105,7 @@ class MediaLibrary:
     series: Dict[str, Series] = field(default_factory=dict)
     movies: Dict[str, Movie] = field(default_factory=dict)
     last_synced: Optional[str] = None
+    _id_index: Optional[Dict[str, 'MediaItem']] = field(default=None, repr=False, compare=False)
     
     @property
     def total_series(self) -> int:
@@ -120,3 +121,25 @@ class MediaLibrary:
     def total_episodes(self) -> int:
         """Total number of episodes across all series."""
         return sum(s.total_episodes for s in self.series.values())
+
+    def build_id_index(self) -> None:
+        """Build a dict mapping item IDs to MediaItem instances for O(1) lookup."""
+        index: Dict[str, MediaItem] = {}
+        for series in self.series.values():
+            index[series.id] = series
+            for episodes in series.seasons.values():
+                for ep in episodes:
+                    index[ep.id] = ep
+        for movie in self.movies.values():
+            index[movie.id] = movie
+        self._id_index = index
+
+    def invalidate_index(self) -> None:
+        """Clear the ID index so it will be rebuilt on next lookup."""
+        self._id_index = None
+
+    def find_by_id(self, item_id: str) -> Optional['MediaItem']:
+        """Look up a media item by ID, building the index on first call."""
+        if self._id_index is None:
+            self.build_id_index()
+        return self._id_index.get(item_id)

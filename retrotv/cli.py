@@ -22,6 +22,8 @@ from retrotv.services import (
     save_guide_to_db,
     load_guide_from_db,
     list_guides_from_db,
+    delete_guide_from_db,
+    count_schedules_for_guide,
     list_schedules_from_db,
 )
 
@@ -42,7 +44,7 @@ Quick-start workflow:
 
 Use 'retrotv <command> --help' for details on any command.
 """)
-@click.version_option(version="1.0.0-mvp", prog_name="RetroTV")
+@click.version_option(version="1.1.0", prog_name="RetroTV")
 @click.pass_context
 def cli(ctx):
     """RetroTV Channel Builder -- recreate historical TV schedules.
@@ -74,7 +76,11 @@ def config():
               help="Base URL of your Plex server. Leave blank to skip.")
 @click.option("--plex-token", prompt="Plex Token (optional)", hide_input=True, default="",
               help="Plex authentication token. Leave blank to skip.")
-def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token):
+@click.option("--emby-url", prompt="Emby URL (optional)", default="",
+              help="Base URL of your Emby server. Leave blank to skip.")
+@click.option("--emby-key", prompt="Emby API Key (optional)", hide_input=True, default="",
+              help="Emby API key (Dashboard > API Keys). Leave blank to skip.")
+def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token, emby_url, emby_key):
     """Interactive first-time setup wizard.
 
     Creates the config file, initialises the database, and stores
@@ -91,6 +97,11 @@ def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token):
         cfg.plex.token = plex_token
         cfg.plex.enabled = True
     
+    if emby_url and emby_key:
+        cfg.emby.url = emby_url
+        cfg.emby.api_key = emby_key
+        cfg.emby.enabled = True
+    
     save_config(cfg)
     ensure_directories(cfg)
     init_db(cfg.db_path)
@@ -99,6 +110,7 @@ def config_init(jellyfin_url, jellyfin_key, plex_url, plex_token):
     console.print(f"  Database: {cfg.db_path}")
     console.print(f"  Jellyfin: {'enabled' if cfg.jellyfin.enabled else 'disabled'}")
     console.print(f"  Plex: {'enabled' if cfg.plex.enabled else 'disabled'}")
+    console.print(f"  Emby: {'enabled' if cfg.emby.enabled else 'disabled'}")
 
 
 @config.command("show")
@@ -115,6 +127,7 @@ def config_show(ctx):
     table.add_row("Database", cfg.db_path)
     table.add_row("Jellyfin URL", cfg.jellyfin.url if cfg.jellyfin.enabled else "(disabled)")
     table.add_row("Plex URL", cfg.plex.url if cfg.plex.enabled else "(disabled)")
+    table.add_row("Emby URL", cfg.emby.url if cfg.emby.enabled else "(disabled)")
     table.add_row("Fuzzy Threshold", str(cfg.matching.fuzzy_threshold))
     table.add_row("Export Directory", cfg.export.output_directory)
     table.add_row("Web Port", str(cfg.web.port))
@@ -124,7 +137,7 @@ def config_show(ctx):
 
 @cli.group()
 def library():
-    """Sync and inspect your Jellyfin/Plex media library.
+    """Sync and inspect your Jellyfin/Plex/Emby media library.
 
     RetroTV needs to know what series and movies you own so it can
     match guide entries to real files for playback.
@@ -133,7 +146,7 @@ def library():
 
 
 @library.command("sync")
-@click.option("--source", type=click.Choice(["jellyfin", "plex", "all"]), default="all",
+@click.option("--source", type=click.Choice(["jellyfin", "plex", "emby", "all"]), default="all",
               help="Which media server to sync from. Defaults to all configured servers.")
 @click.pass_context
 def library_sync(ctx, source):
@@ -200,6 +213,29 @@ def library_sync(ctx, source):
                         progress.update(task, description="[red]Plex connection failed")
                 except Exception as e:
                     progress.update(task, description=f"[red]Plex error: {e}")
+            
+            if source in ("emby", "all") and cfg.emby.enabled:
+                task = progress.add_task("Syncing Emby...", total=None)
+                try:
+                    connector = get_connector("emby", {
+                        "url": cfg.emby.url,
+                        "api_key": cfg.emby.api_key,
+                        "user_id": cfg.emby.user_id,
+                    })
+                    
+                    if await connector.test_connection():
+                        lib = await connector.sync_library()
+                        results["emby"] = {
+                            "series": lib.total_series,
+                            "movies": lib.total_movies,
+                            "episodes": lib.total_episodes,
+                        }
+                        save_library_to_db(lib)
+                        progress.update(task, description="[green]Emby synced!")
+                    else:
+                        progress.update(task, description="[red]Emby connection failed")
+                except Exception as e:
+                    progress.update(task, description=f"[red]Emby error: {e}")
         
         return results
     
@@ -239,7 +275,7 @@ def library_status(ctx):
     table.add_column("Episodes", justify="right")
     
     for row in rows:
-        table.add_row(row[0], row[1][:19] if row[1] else "-", str(row[2]), str(row[3]), str(row[4]))
+        table.add_row(row["source"], row["last_synced"][:19] if row["last_synced"] else "-", str(row["total_series"]), str(row["total_movies"]), str(row["total_episodes"]))
     
     console.print(table)
 
@@ -423,6 +459,46 @@ def guide_list(ctx):
     console.print(table)
 
 
+@guide.command("delete")
+@click.argument("guide_id", metavar="GUIDE_ID")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt.")
+@click.option("--cascade", is_flag=True, help="Also delete schedules built from this guide.")
+@click.pass_context
+def guide_delete(ctx, guide_id, yes, cascade):
+    """Delete a guide and its entries.
+
+    GUIDE_ID is the short ID (first 8 chars) shown by 'guide list'.
+
+    \b
+    Examples:
+      retrotv guide delete a1b2c3d4
+      retrotv guide delete a1b2c3d4 -y
+      retrotv guide delete a1b2c3d4 --cascade
+    """
+    cfg = ctx.obj['config']
+    init_db(cfg.db_path)
+
+    dep_count = count_schedules_for_guide(guide_id)
+    if dep_count > 0 and not cascade:
+        console.print(f"[yellow]This guide has {dep_count} schedule(s) built from it.[/yellow]")
+        console.print("Use --cascade to delete them too, or delete the schedules first.")
+        return
+
+    if not yes:
+        msg = f"Delete guide {guide_id}"
+        if cascade and dep_count > 0:
+            msg += f" and its {dep_count} schedule(s)"
+        click.confirm(f"{msg}?", abort=True)
+
+    deleted_id = delete_guide_from_db(guide_id, cascade=cascade)
+    if deleted_id:
+        console.print(f"[green]Deleted guide {deleted_id[:8]}[/green]")
+        if cascade and dep_count > 0:
+            console.print(f"[green]Also deleted {dep_count} dependent schedule(s)[/green]")
+    else:
+        console.print(f"[red]Guide not found: {guide_id}[/red]")
+
+
 @cli.group()
 def schedule():
     """Create, list, and export playback schedules.
@@ -436,10 +512,10 @@ def schedule():
 
 @schedule.command("create")
 @click.argument("guide_id", metavar="GUIDE_ID")
-@click.option("--auto-substitute/--no-auto-substitute", default=False,
-              help="Automatically fill missing slots with similar shows from your library.")
-@click.option("--sequential/--no-sequential", default=False,
-              help="Track episode progression so repeat builds continue where you left off.")
+@click.option("--auto-substitute/--no-auto-substitute", default=True,
+              help="Automatically fill missing slots with similar shows from your library. Default: on.")
+@click.option("--sequential/--no-sequential", default=True,
+              help="Track episode progression so repeat builds continue where you left off. Default: on.")
 @click.pass_context
 def schedule_create(ctx, guide_id, auto_substitute, sequential):
     """Match a guide against your library and build a playback schedule.
@@ -978,6 +1054,142 @@ def ersatztv_push(ctx, schedule_id, build_id, url, min_confidence):
         console.print(f"[red]Errors: {len(errors)}[/red]")
         for e in errors:
             console.print(f"  {e['error']}")
+
+
+@cli.command("quick-build")
+@click.argument("network", metavar="NETWORK")
+@click.argument("year", type=int, metavar="YEAR")
+@click.option("--full-day/--primetime-only", default=False,
+              help="Include daytime programming. Default is primetime only.")
+@click.option("--auto-substitute/--no-auto-substitute", default=True,
+              help="Auto-fill missing slots with similar library content. Default: on.")
+@click.option("--sequential/--no-sequential", default=True,
+              help="Track episode progression across builds. Default: on.")
+@click.option("--export-format", type=click.Choice(["ersatztv", "tunarr"]), default=None,
+              help="Optionally export schedules immediately after building.")
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Output directory for exports. Defaults to config export path.")
+@click.pass_context
+def quick_build(ctx, network, year, full_day, auto_substitute, sequential, export_format, output):
+    """Generate guides, match against library, and build schedules in one step.
+
+    \b
+    NETWORK  Broadcast network (e.g. NBC, ABC, CBS, FOX, HBO).
+    YEAR     Broadcast year (e.g. 1985).
+
+    This is the fastest way to go from nothing to a full week of
+    playback-ready schedules.  It combines 'guide generate-week' and
+    'schedule create' (with --auto-substitute --sequential by default),
+    and optionally exports the result.
+
+    \b
+    Examples:
+      retrotv quick-build NBC 1985
+      retrotv quick-build CBS 1995 --full-day --export-format ersatztv
+      retrotv quick-build FOX 1997 --no-auto-substitute --primetime-only
+    """
+    from retrotv.sources.networks import NetworkScheduleGenerator
+    from retrotv.matching import LibraryMatcher
+    from retrotv.scheduling import ScheduleBuilder
+    from retrotv.substitution import SubstitutionEngine
+
+    cfg = ctx.obj['config']
+    init_db(cfg.db_path)
+
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    generator = NetworkScheduleGenerator()
+
+    # --- Step 1: Generate week of guides ---
+    with console.status(f"Generating week for {network.upper()} {year}..."):
+        week_results = generator.generate_week(
+            network=network, year=year, full_day=full_day,
+        )
+
+    guide_count = sum(1 for _, entries in week_results if entries)
+    console.print(f"[green]Generated {guide_count} daily guides[/green]")
+
+    # --- Step 2: Load library ---
+    with console.status("Loading library..."):
+        library = load_library_from_db()
+
+    if not library.series and not library.movies:
+        console.print("[yellow]Warning: Library is empty. Run 'retrotv library sync' first.[/yellow]")
+        console.print("[yellow]Schedules will have no matches.[/yellow]")
+
+    # --- Step 3: Build schedules for each day ---
+    built_schedules = []
+    summary_table = Table(title=f"{network.upper()} {year} — Quick Build")
+    summary_table.add_column("Day", style="cyan")
+    summary_table.add_column("Guide", style="dim")
+    summary_table.add_column("Schedule", style="dim")
+    summary_table.add_column("Slots", justify="right")
+    summary_table.add_column("Matched", justify="right", style="green")
+    summary_table.add_column("Subst", justify="right", style="blue")
+    summary_table.add_column("Missing", justify="right", style="red")
+    summary_table.add_column("Coverage", justify="right")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Building schedules...", total=len(week_results))
+
+        for i, (metadata, entries) in enumerate(week_results):
+            progress.update(task, description=f"Building {days[i].capitalize()}...")
+
+            if not entries:
+                summary_table.add_row(days[i].capitalize(), "-", "-", "0", "0", "0", "0", "-")
+                progress.advance(task)
+                continue
+
+            save_guide_to_db(metadata, entries)
+
+            matcher = LibraryMatcher(library, fuzzy_threshold=cfg.matching.fuzzy_threshold, use_cursors=sequential)
+            match_results = matcher.match_all(entries)
+
+            builder = ScheduleBuilder(metadata)
+            sched = builder.build_from_matches(entries, match_results)
+
+            if auto_substitute:
+                engine = SubstitutionEngine(library)
+                engine.auto_substitute_all(sched.slots)
+                sched.calculate_stats()
+
+            save_schedule_to_db(sched)
+            built_schedules.append(sched)
+
+            summary_table.add_row(
+                days[i].capitalize(),
+                metadata.id[:8],
+                sched.schedule_id[:8],
+                str(sched.total_slots),
+                str(sched.matched_count),
+                str(sched.substituted_count),
+                str(sched.missing_count),
+                f"{sched.coverage_percent:.0f}%",
+            )
+            progress.advance(task)
+
+    console.print(summary_table)
+    console.print(f"[green]Built {len(built_schedules)} schedules[/green]")
+
+    # --- Step 4: Optional export ---
+    if export_format and built_schedules:
+        output_dir = Path(output) if output else Path(cfg.export.output_directory)
+
+        with console.status(f"Exporting to {export_format}..."):
+            if export_format == "ersatztv":
+                from retrotv.export import ErsatzTVExporter
+                exporter = ErsatzTVExporter(output_dir)
+            else:
+                from retrotv.export import TunarrExporter
+                exporter = TunarrExporter(output_dir)
+
+            for sched in built_schedules:
+                exporter.export(sched)
+
+        console.print(f"[green]Exported {len(built_schedules)} schedules to {output_dir}[/green]")
 
 
 def main():

@@ -74,35 +74,32 @@ def load_guide_from_db(
 
         cursor.execute(
             "SELECT * FROM guide_entries WHERE guide_id = ? ORDER BY start_time",
-            (guide_row[0],),
+            (guide_row["id"],),
         )
         entry_rows = cursor.fetchall()
 
-    if not entry_rows:
-        return None
-
     metadata = GuideMetadata(
-        id=guide_row[0],
-        channel_name=guide_row[1],
-        broadcast_date=datetime.fromisoformat(guide_row[2]),
-        decade=guide_row[3],
+        id=guide_row["id"],
+        channel_name=guide_row["channel_name"],
+        broadcast_date=datetime.fromisoformat(guide_row["broadcast_date"]),
+        decade=guide_row["decade"],
     )
 
     entries = []
     for row in entry_rows:
         entry = GuideEntry(
-            title=row[2],
-            start_time=datetime.fromisoformat(row[4]) if row[4] else datetime.now(),
-            id=row[0],
-            end_time=datetime.fromisoformat(row[5]) if row[5] else None,
-            duration_minutes=row[6],
-            episode_title=row[7],
-            season_number=row[8],
-            episode_number=row[9],
-            genre=row[10],
-            description=row[11],
+            title=row["title"],
+            start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else datetime.now(),
+            id=row["id"],
+            end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
+            duration_minutes=row["duration_minutes"],
+            episode_title=row["episode_title"],
+            season_number=row["season_number"],
+            episode_number=row["episode_number"],
+            genre=row["genre"],
+            description=row["description"],
         )
-        normalized = NormalizedGuideEntry(original=entry, normalized_title=row[3])
+        normalized = NormalizedGuideEntry(original=entry, normalized_title=row["normalized_title"])
         entries.append(normalized)
 
     return metadata, entries
@@ -120,12 +117,62 @@ def list_guides_from_db() -> List[dict]:
 
     return [
         {
-            "id": row[0], "name": row[1], "channel_name": row[2],
-            "broadcast_date": row[3], "decade": row[4],
-            "entry_count": row[5], "source_file": row[6],
+            "id": row["id"], "name": row["name"], "channel_name": row["channel_name"],
+            "broadcast_date": row["broadcast_date"], "decade": row["decade"],
+            "entry_count": row["entry_count"], "source_file": row["source_file"],
         }
         for row in rows
     ]
+
+
+def count_schedules_for_guide(guide_id: str) -> int:
+    """Return the number of schedules that depend on a guide (by ID prefix)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM guides WHERE id LIKE ?", (f"{guide_id}%",)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return 0
+        cursor.execute(
+            "SELECT COUNT(*) AS cnt FROM schedules WHERE guide_id = ?",
+            (row["id"],),
+        )
+        return cursor.fetchone()["cnt"]
+
+
+def delete_guide_from_db(guide_id: str, cascade: bool = False) -> Optional[str]:
+    """Delete a guide and its entries by ID prefix.
+
+    If *cascade* is True, also delete any schedules built from this guide.
+    Returns full ID or None if not found.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM guides WHERE id LIKE ?", (f"{guide_id}%",)
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            return None
+
+        full_id = row["id"]
+
+        if cascade:
+            cursor.execute(
+                "SELECT id FROM schedules WHERE guide_id = ?", (full_id,)
+            )
+            for sched_row in cursor.fetchall():
+                cursor.execute("DELETE FROM schedule_slots WHERE schedule_id = ?", (sched_row["id"],))
+            cursor.execute("DELETE FROM schedules WHERE guide_id = ?", (full_id,))
+
+        cursor.execute("DELETE FROM guide_entries WHERE guide_id = ?", (full_id,))
+        cursor.execute("DELETE FROM guides WHERE id = ?", (full_id,))
+        conn.commit()
+
+    return full_id
 
 
 def _generate_guide_name(metadata: GuideMetadata) -> str:

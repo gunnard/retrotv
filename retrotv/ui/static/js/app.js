@@ -41,7 +41,8 @@ function showToast(message, type = 'info') {
     <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;margin-left:auto;">&times;</button>
   `;
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
+  const duration = (type === 'error' || type === 'success') ? 8000 : 4000;
+  setTimeout(() => toast.remove(), duration);
 }
 
 // Loading state
@@ -285,12 +286,21 @@ function closeViewGuideModal() {
 }
 
 async function deleteGuide(guideId) {
-  if (!confirm('Delete this guide?')) return;
-  
+  const guide = state.guides.find(g => g.id.startsWith(guideId));
+  const label = guide ? `${guide.channel_name} - ${guide.broadcast_date}` : guideId.substring(0, 8);
+
   try {
-    await api(`/guides/${guideId}`, { method: 'DELETE' });
+    const depCount = state.schedules.filter(s => s.guide_id && s.guide_id.startsWith(guideId)).length;
+    let msg = `Delete guide "${label}"?`;
+    if (depCount > 0) {
+      msg += `\n\nThis will also delete ${depCount} schedule(s) built from it.`;
+    }
+    if (!confirm(msg)) return;
+
+    await api(`/guides/${guideId}?cascade=true`, { method: 'DELETE' });
     showToast('Guide deleted', 'success');
     loadGuides();
+    if (depCount > 0) loadSchedules();
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -361,16 +371,38 @@ function createScheduleFromGuide(guideId) {
 
 function closeCreateScheduleModal() {
   document.getElementById('create-schedule-modal').classList.remove('active');
+  resetCreateScheduleModal();
 }
 
 async function confirmCreateSchedule() {
   const guideId = document.getElementById('create-schedule-guide-id').value;
   const autoSub = document.getElementById('create-auto-substitute').checked;
-  
-  closeCreateScheduleModal();
-  
+
+  const progressEl = document.getElementById('create-schedule-progress');
+  const progressBar = document.getElementById('create-schedule-progress-bar');
+  const progressText = document.getElementById('create-schedule-progress-text');
+  const btn = document.getElementById('create-schedule-btn');
+
+  btn.disabled = true;
+  progressEl.style.display = 'block';
+
+  const steps = [
+    { pct: 15, text: 'Loading library...' },
+    { pct: 40, text: 'Matching guide entries...' },
+    { pct: 65, text: autoSub ? 'Running auto-substitution...' : 'Building slots...' },
+    { pct: 85, text: 'Saving schedule...' },
+  ];
+
+  let stepIdx = 0;
+  const ticker = setInterval(() => {
+    if (stepIdx < steps.length) {
+      progressBar.style.width = steps[stepIdx].pct + '%';
+      progressText.textContent = steps[stepIdx].text;
+      stepIdx++;
+    }
+  }, 600);
+
   try {
-    showToast('Creating schedule...', 'info');
     const schedule = await api('/schedules', {
       method: 'POST',
       body: JSON.stringify({
@@ -378,12 +410,30 @@ async function confirmCreateSchedule() {
         auto_substitute: autoSub
       })
     });
-    
-    showToast(`Schedule created: ${schedule.coverage_percent.toFixed(1)}% coverage`, 'success');
-    navigateTo('schedules');
+
+    clearInterval(ticker);
+    progressBar.style.width = '100%';
+    progressText.textContent = 'Done!';
+
+    setTimeout(() => {
+      closeCreateScheduleModal();
+      showToast(`Schedule created: ${schedule.coverage_percent.toFixed(1)}% coverage`, 'success');
+      navigateTo('schedules');
+    }, 400);
   } catch (error) {
+    clearInterval(ticker);
+    closeCreateScheduleModal();
     showToast(error.message, 'error');
   }
+}
+
+function resetCreateScheduleModal() {
+  const progressEl = document.getElementById('create-schedule-progress');
+  const progressBar = document.getElementById('create-schedule-progress-bar');
+  const btn = document.getElementById('create-schedule-btn');
+  progressEl.style.display = 'none';
+  progressBar.style.width = '0%';
+  btn.disabled = false;
 }
 
 let currentScheduleId = null;
@@ -412,6 +462,7 @@ async function viewSchedule(scheduleId) {
       <span class="badge badge-danger">${missing} Missing</span>
     `;
     
+    renderTimeline(slots);
     renderScheduleSlots(slots);
     modal.classList.add('active');
   } catch (error) {
@@ -466,6 +517,38 @@ function renderScheduleSlots(slots) {
       </tr>
     `;
   }).join('');
+}
+
+function renderTimeline(slots) {
+  const container = document.getElementById('schedule-timeline');
+  if (!container || !slots.length) return;
+
+  const firstStart = new Date(slots[0].scheduled_start).getTime();
+  const lastSlot = slots[slots.length - 1];
+  const lastEnd = new Date(lastSlot.scheduled_end || lastSlot.scheduled_start).getTime();
+  const totalSpan = lastEnd - firstStart || 1;
+
+  const startLabel = slots[0].scheduled_start.substring(11, 16);
+  const endLabel = (lastSlot.scheduled_end || lastSlot.scheduled_start).substring(11, 16);
+
+  container.innerHTML = `
+    <div class="timeline-labels">
+      <span>${startLabel}</span>
+      <span>${endLabel}</span>
+    </div>
+    <div class="schedule-timeline">
+      ${slots.map(s => {
+        const slotStart = new Date(s.scheduled_start).getTime();
+        const slotEnd = new Date(s.scheduled_end || s.scheduled_start).getTime();
+        const widthPct = Math.max(0.3, ((slotEnd - slotStart) / totalSpan) * 100);
+        const title = s.original_title || 'Unknown';
+        const time = s.scheduled_start.substring(11, 16);
+        return `<div class="timeline-slot" data-status="${s.match_status}" style="width:${widthPct}%">
+          <span class="timeline-tooltip">${time} — ${title}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
 }
 
 function closeViewScheduleModal() {
@@ -689,8 +772,10 @@ async function exportAdditionalFormat(format) {
 }
 
 async function deleteSchedule(scheduleId) {
-  if (!confirm('Delete this schedule?')) return;
-  
+  const sched = state.schedules.find(s => s.id.startsWith(scheduleId));
+  const label = sched ? `${sched.channel_name} - ${sched.broadcast_date}` : scheduleId.substring(0, 8);
+  if (!confirm(`Delete schedule "${label}"?`)) return;
+
   try {
     await api(`/schedules/${scheduleId}`, { method: 'DELETE' });
     showToast('Schedule deleted', 'success');
@@ -840,9 +925,66 @@ async function loadCreatePage() {
     
     // Load shows
     await filterShows();
+
+    // Load template browser
+    await loadTemplateBrowser();
   } catch (error) {
     showToast(error.message, 'error');
   }
+}
+
+async function loadTemplateBrowser() {
+  const container = document.getElementById('template-browser');
+  const countEl = document.getElementById('template-count');
+
+  try {
+    const data = await api('/sources/templates');
+    const templates = data.templates;
+
+    let totalCombos = 0;
+    const networkNames = Object.keys(templates).sort();
+
+    for (const net of networkNames) {
+      for (const yr of Object.keys(templates[net])) {
+        totalCombos += Object.keys(templates[net][yr]).length;
+      }
+    }
+
+    countEl.textContent = `${totalCombos} templates across ${networkNames.length} networks`;
+
+    container.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem;max-height:260px;overflow-y:auto;">
+        ${networkNames.map(net => {
+          const years = Object.keys(templates[net]).sort();
+          return `
+            <div class="card" style="padding:0.75rem;min-width:180px;flex:1;">
+              <strong style="color:var(--primary);">${net}</strong>
+              <div class="text-sm text-muted mb-1">${years.length} year${years.length !== 1 ? 's' : ''}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:0.25rem;">
+                ${years.map(yr => {
+                  const dayCount = Object.keys(templates[net][yr]).length;
+                  return `<button class="btn btn-sm btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.75rem;"
+                    onclick="applyTemplateBrowser('${net}','${yr}')"
+                    title="${dayCount} day${dayCount !== 1 ? 's' : ''}">${yr}</button>`;
+                }).join('')}
+              </div>
+            </div>`;
+        }).join('')}
+      </div>
+    `;
+  } catch (error) {
+    container.innerHTML = '<p class="text-muted">Could not load templates.</p>';
+  }
+}
+
+function applyTemplateBrowser(network, year) {
+  const networkSelect = document.getElementById('gen-network');
+  networkSelect.value = network;
+  loadNetworkYears().then(() => {
+    document.getElementById('gen-year').value = year;
+    loadNetworkDays();
+  });
+  showToast(`Selected ${network} ${year}`, 'info');
 }
 
 async function applyPreset() {
@@ -1043,6 +1185,34 @@ async function generateFromTemplate() {
     });
     
     showToast(`Generated: ${result.channel_name} with ${result.entry_count} entries`, 'success');
+    navigateTo('guides');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+}
+
+async function generateFullWeek() {
+  const network = document.getElementById('gen-network').value;
+  const year = document.getElementById('gen-year').value;
+  const fullDay = document.getElementById('gen-fullday').checked;
+
+  if (!network || !year) {
+    showToast('Please select network and year', 'error');
+    return;
+  }
+
+  try {
+    showToast('Generating full week...', 'info');
+    const result = await api('/sources/generate-week', {
+      method: 'POST',
+      body: JSON.stringify({
+        network,
+        year: parseInt(year),
+        full_day: fullDay
+      })
+    });
+
+    showToast(`Generated ${result.guides_created} daily guides for ${result.network} ${result.year}`, 'success');
     navigateTo('guides');
   } catch (error) {
     showToast(error.message, 'error');
@@ -1537,10 +1707,29 @@ function setupFileUpload() {
   });
 }
 
+// Responsive sidebar
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.querySelector('.sidebar-backdrop').classList.toggle('visible');
+}
+
+function closeSidebar() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.querySelector('.sidebar-backdrop').classList.remove('visible');
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   setupFileUpload();
   navigateTo('dashboard');
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', closeSidebar);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSidebar();
+  });
 });
 
 // Expose functions to global scope for onclick handlers
@@ -1573,6 +1762,8 @@ window.loadNetworkYears = loadNetworkYears;
 window.loadNetworkDays = loadNetworkDays;
 window.applyPreset = applyPreset;
 window.generateFromTemplate = generateFromTemplate;
+window.generateFullWeek = generateFullWeek;
+window.applyTemplateBrowser = applyTemplateBrowser;
 window.addCustomEntry = addCustomEntry;
 window.buildCustomGuide = buildCustomGuide;
 window.filterShows = filterShows;
@@ -1588,3 +1779,5 @@ window.saveExportSettings = saveExportSettings;
 window.updateWeightDisplay = updateWeightDisplay;
 window.scrapeGuide = scrapeGuide;
 window.resetSettings = resetSettings;
+window.toggleSidebar = toggleSidebar;
+window.closeSidebar = closeSidebar;

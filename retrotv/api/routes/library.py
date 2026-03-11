@@ -65,11 +65,11 @@ async def get_library_status():
     
     return [
         LibraryStatus(
-            source=row[0],
-            last_synced=row[1],
-            total_series=row[2],
-            total_movies=row[3],
-            total_episodes=row[4]
+            source=row["source"],
+            last_synced=row["last_synced"],
+            total_series=row["total_series"],
+            total_movies=row["total_movies"],
+            total_episodes=row["total_episodes"]
         )
         for row in rows
     ]
@@ -116,6 +116,20 @@ async def _do_sync(source: str):
                 save_library_to_db(library)
         except Exception as e:
             print(f"Plex sync error: {e}")
+    
+    if source in ("emby", "all") and config.emby.enabled:
+        try:
+            connector = get_connector("emby", {
+                "url": config.emby.url,
+                "api_key": config.emby.api_key,
+                "user_id": config.emby.user_id,
+            })
+            
+            if await connector.test_connection():
+                library = await connector.sync_library()
+                save_library_to_db(library)
+        except Exception as e:
+            print(f"Emby sync error: {e}")
 
 
 
@@ -140,12 +154,12 @@ async def list_series(limit: int = 100, offset: int = 0):
     
     return [
         SeriesResponse(
-            id=row[0],
-            title=row[1],
-            normalized_title=row[2],
-            year=row[3],
-            genres=json.loads(row[4]) if row[4] else [],
-            total_episodes=row[5]
+            id=row["series_id"],
+            title=row["series_title"],
+            normalized_title=row["normalized_title"],
+            year=row["year"],
+            genres=json.loads(row["genres"]) if row["genres"] else [],
+            total_episodes=row["episode_count"]
         )
         for row in rows
     ]
@@ -169,12 +183,12 @@ async def list_movies(limit: int = 100, offset: int = 0):
     
     return [
         MovieResponse(
-            id=row[0],
-            title=row[1],
-            normalized_title=row[2],
-            year=row[3],
-            genres=json.loads(row[4]) if row[4] else [],
-            runtime_minutes=(row[5] or 0) // 60
+            id=row["id"],
+            title=row["title"],
+            normalized_title=row["normalized_title"],
+            year=row["year"],
+            genres=json.loads(row["genres"]) if row["genres"] else [],
+            runtime_minutes=(row["runtime_seconds"] or 0) // 60
         )
         for row in rows
     ]
@@ -201,17 +215,17 @@ async def search_library(q: str, limit: int = 20):
     
     return [
         SearchResult(
-            type=row[0],
-            id=row[1],
-            title=row[2],
-            normalized_title=row[3],
-            year=row[4],
-            runtime_minutes=(row[5] or 0) // 60,
-            series_title=row[6],
-            season_number=row[7],
-            episode_number=row[8],
-            episode_title=row[9],
-            genres=row[10]
+            type=row["media_type"],
+            id=row["id"],
+            title=row["title"],
+            normalized_title=row["normalized_title"],
+            year=row["year"],
+            runtime_minutes=(row["runtime_seconds"] or 0) // 60,
+            series_title=row["series_title"],
+            season_number=row["season_number"],
+            episode_number=row["episode_number"],
+            episode_title=row["episode_title"],
+            genres=row["genres"]
         )
         for row in rows
     ]

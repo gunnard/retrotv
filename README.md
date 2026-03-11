@@ -1,9 +1,10 @@
 # RetroTV Channel Builder
 
-Recreate historical TV channel schedules from the 1970s-2000s using your local media library.
 <img width="1384" height="438" alt="image" src="https://github.com/user-attachments/assets/be42b9b2-04f9-465f-96dd-42fd064d7dd5" />
 <img width="1382" height="740" alt="image" src="https://github.com/user-attachments/assets/f63cff30-58c1-4de1-9553-037e8fde1d62" />
 <img width="1375" height="744" alt="image" src="https://github.com/user-attachments/assets/8426ccf5-a4a0-403b-92c7-f0eeb219889f" />
+
+Recreate historical TV channel schedules from the 1970s-2000s using your local media library.
 
 ## Features
 
@@ -48,21 +49,12 @@ plex:
   enabled: false
   url: http://localhost:32400
   token: YOUR_PLEX_TOKEN
-
-emby:
-  enabled: false
-  url: http://localhost:8096
-  api_key: YOUR_EMBY_API_KEY
 ```
 
 Or use environment variables:
 ```bash
 export JELLYFIN_API_KEY=your_api_key
 export JELLYFIN_URL=http://localhost:8096
-export PLEX_TOKEN=your_plex_token
-export PLEX_URL=http://localhost:32400
-export EMBY_API_KEY=your_emby_api_key
-export EMBY_URL=http://localhost:8096
 ```
 
 ### Initialize
@@ -187,8 +179,7 @@ retrotv/
 │   └── csv_parser.py
 ├── connectors/         # Media server connectors
 │   ├── jellyfin.py
-│   ├── plex.py
-│   └── emby.py
+│   └── plex.py
 ├── matching/           # Matching engine
 │   ├── fuzzy.py
 │   └── matcher.py
@@ -209,7 +200,7 @@ retrotv/
 ## Requirements
 
 - Python 3.11+
-- Jellyfin, Plex, or Emby media server
+- Jellyfin or Plex media server
 - ErsatzTV or Tunarr for playback (optional)
 
 ## License

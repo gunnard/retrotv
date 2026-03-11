@@ -94,8 +94,9 @@ class ScheduleBuilder:
         schedule: ChannelSchedule,
         filler_items: List[MediaItem]
     ):
-        """Insert filler items into slots with ad gaps."""
+        """Insert filler items into slots with ad gaps, avoiding duplicates."""
         sorted_fillers = sorted(filler_items, key=lambda f: f.runtime_seconds, reverse=True)
+        used_ids: set = set()
         
         for slot in schedule.slots:
             if slot.ad_gap_seconds <= 0:
@@ -105,8 +106,11 @@ class ScheduleBuilder:
             selected_fillers = []
             
             for filler in sorted_fillers:
+                if filler.id in used_ids:
+                    continue
                 if filler.runtime_seconds <= remaining_gap:
                     selected_fillers.append(filler)
+                    used_ids.add(filler.id)
                     remaining_gap -= filler.runtime_seconds
                 
                 if remaining_gap <= 0:
