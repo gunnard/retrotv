@@ -231,8 +231,15 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     
     config = AppConfig()
     
-    if Path(config_path).exists():
-        with open(config_path, 'r') as f:
+    candidates = [config_path, "config/config.yaml"]
+    resolved_path = None
+    for candidate in candidates:
+        if Path(candidate).is_file():
+            resolved_path = candidate
+            break
+    
+    if resolved_path:
+        with open(resolved_path, 'r') as f:
             yaml_config = yaml.safe_load(f) or {}
         config = _parse_yaml_config(yaml_config)
     

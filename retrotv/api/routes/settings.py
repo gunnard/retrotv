@@ -7,9 +7,18 @@ from pathlib import Path
 import yaml
 import os
 
+from retrotv.config import load_config as _load_app_config
+
 router = APIRouter()
 
-CONFIG_PATH = Path("config.yaml")
+
+def _resolve_config_path() -> Path:
+    """Find the config file, checking fallback paths."""
+    for candidate in ["config.yaml", "config/config.yaml"]:
+        p = Path(candidate)
+        if p.is_file():
+            return p
+    return Path("config.yaml")
 
 
 class JellyfinSettings(BaseModel):
@@ -50,53 +59,56 @@ class AppSettings(BaseModel):
 
 def load_config_file() -> dict:
     """Load config from YAML file."""
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH, 'r') as f:
+    path = _resolve_config_path()
+    if path.is_file():
+        with open(path, 'r') as f:
             return yaml.safe_load(f) or {}
     return {}
 
 
 def save_config_file(config: dict):
     """Save config to YAML file."""
-    with open(CONFIG_PATH, 'w') as f:
+    path = _resolve_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
 
 
 @router.get("")
 async def get_settings():
-    """Get current application settings."""
-    config = load_config_file()
+    """Get current application settings, including env var overrides."""
+    cfg = _load_app_config()
     
-    jellyfin_configured = bool(config.get('jellyfin', {}).get('api_key'))
-    plex_configured = bool(config.get('plex', {}).get('token'))
+    jellyfin_configured = bool(cfg.jellyfin.api_key)
+    plex_configured = bool(cfg.plex.token)
     
     return {
         "jellyfin": {
-            "url": config.get('jellyfin', {}).get('url', ''),
+            "url": cfg.jellyfin.url,
             "configured": jellyfin_configured,
-            "user_id": config.get('jellyfin', {}).get('user_id', '')
+            "user_id": cfg.jellyfin.user_id
         },
         "plex": {
-            "url": config.get('plex', {}).get('url', ''),
+            "url": cfg.plex.url,
             "configured": plex_configured
         },
-        "matching": config.get('matching', {
-            "min_score": 80,
+        "matching": {
+            "min_score": cfg.matching.fuzzy_threshold,
             "year_weight": 0.2,
             "title_weight": 0.8
-        }),
-        "export": config.get('export', {
-            "output_dir": "./exports",
+        },
+        "export": {
+            "output_dir": cfg.export.output_directory,
             "ersatztv_format": True,
             "tunarr_format": True
-        }),
+        },
         "ersatztv": {
-            "url": config.get('ersatztv', {}).get('url', ''),
-            "enabled": config.get('ersatztv', {}).get('enabled', False),
-            "configured": bool(config.get('ersatztv', {}).get('url'))
+            "url": cfg.ersatztv.url,
+            "enabled": cfg.ersatztv.enabled,
+            "configured": bool(cfg.ersatztv.url)
         },
         "database": {
-            "path": config.get('app', {}).get('db_path', './data/retrotv.db')
+            "path": cfg.db_path
         }
     }
 

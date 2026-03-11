@@ -233,7 +233,19 @@
           </div>
         </div>
 
-        <div class="grid-2">
+        <!-- Template Browser -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">📋 Template Browser</h3>
+            <span class="text-sm text-muted" id="template-count"></span>
+          </div>
+          <p class="text-muted mb-2">Browse all available network/year/day template combinations.</p>
+          <div id="template-browser">
+            <p class="text-muted">Loading templates...</p>
+          </div>
+        </div>
+
+        <div class="grid-2 mt-3">
           <!-- Generate from Template -->
           <div class="card">
             <div class="card-header">
@@ -318,18 +330,6 @@
             <button class="btn btn-sm btn-secondary mt-1" onclick="addCustomEntry()">+ Add Entry</button>
           </div>
           <button class="btn btn-primary" onclick="buildCustomGuide()">Build Guide</button>
-        </div>
-
-        <!-- Template Browser -->
-        <div class="card mt-3">
-          <div class="card-header">
-            <h3 class="card-title">📋 Template Browser</h3>
-            <span class="text-sm text-muted" id="template-count"></span>
-          </div>
-          <p class="text-muted mb-2">Browse all available network/year/day template combinations.</p>
-          <div id="template-browser">
-            <p class="text-muted">Loading templates...</p>
-          </div>
         </div>
 
         <!-- Shows Database -->

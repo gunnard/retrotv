@@ -52,8 +52,18 @@ class NetworkScheduleGenerator:
         return list(self.templates.keys())
     
     def get_available_years(self, network: str) -> List[str]:
-        """Get available years for a network. Returns years from 1950-2010."""
-        return [str(y) for y in range(1950, 2011)]
+        """Get available years for a network, including any template years."""
+        base_years = set(range(1950, 2011))
+        net_upper = network.upper()
+        for key in self.templates:
+            if key.upper() == net_upper:
+                for year_str in self.templates[key]:
+                    try:
+                        base_years.add(int(year_str))
+                    except (ValueError, TypeError):
+                        pass
+                break
+        return [str(y) for y in sorted(base_years)]
     
     def get_available_days(self, network: str, year: str) -> List[str]:
         """Get available days for a network/year combo. Always returns all 7 days."""

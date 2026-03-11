@@ -28,8 +28,10 @@ Thumbs.db
 
 # Project secrets and runtime data
 config.yaml
-data/*.db
-data/*.db-journal
+config/
+data/
+*.db
+*.db-journal
 
 # Exports (generated output)
 exports/
@@ -43,3 +45,4 @@ filler/*.ts
 # Environment
 .env
 .env.*
+!.env.example

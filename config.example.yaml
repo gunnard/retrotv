@@ -17,6 +17,12 @@ plex:
   url: http://localhost:32400
   token: ${PLEX_TOKEN}
 
+emby:
+  enabled: false
+  url: http://localhost:8096
+  api_key: ${EMBY_API_KEY}
+  user_id: ""
+
 matching:
   fuzzy_threshold: 70
   runtime_tolerance_minutes: 5
