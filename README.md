@@ -200,3 +200,5 @@ retrotv/
 ## License
 
 MIT License
+
+## Assistance from Claude was used in developing this project
