@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   retrotv:
     build: .
@@ -11,18 +9,15 @@ services:
       - ./exports:/app/exports
       - ./guides:/app/guides
       - ./filler:/app/filler
-    env_file:
-      - path: .env
-        required: false
     environment:
-      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY}
+      - JELLYFIN_API_KEY=${JELLYFIN_API_KEY:-}
       - JELLYFIN_URL=${JELLYFIN_URL:-http://localhost:8096}
-      - PLEX_TOKEN=${PLEX_TOKEN}
+      - PLEX_TOKEN=${PLEX_TOKEN:-}
       - PLEX_URL=${PLEX_URL:-http://localhost:32400}
-      - EMBY_API_KEY=${EMBY_API_KEY}
+      - EMBY_API_KEY=${EMBY_API_KEY:-}
       - EMBY_URL=${EMBY_URL:-http://localhost:8096}
-      - ERSATZTV_URL=${ERSATZTV_URL}
-      - RETROTV_LOG_LEVEL=INFO
+      - ERSATZTV_URL=${ERSATZTV_URL:-}
+      - RETROTV_LOG_LEVEL=${RETROTV_LOG_LEVEL:-INFO}
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

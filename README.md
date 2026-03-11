@@ -32,8 +32,8 @@ Ever wanted to experience what it was like flipping on NBC on a Thursday night i
 git clone https://github.com/gunnard/retrotv.git
 cd retrotv
 python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -e .
 
 # Configure your media server
 retrotv config init
@@ -61,15 +61,20 @@ Open `http://localhost:8080` — browse templates, generate guides, create sched
 ### Docker
 
 ```bash
-# Quick start (uses config.example.yaml defaults)
-docker compose up -d
-
-# With your own credentials via .env
-cp .env.example .env   # edit with your API keys
+# Quick start — builds and runs with defaults
+git clone https://github.com/gunnard/retrotv.git
+cd retrotv
 docker compose up -d
 ```
 
-The web UI is available at `http://localhost:8080`.
+The web UI is available at `http://localhost:8080`. Configure your media server from the Settings page.
+
+To set credentials before starting, create a `.env` file:
+
+```bash
+cp .env.example .env   # edit with your Jellyfin/Plex/Emby API keys
+docker compose up -d
+```
 
 #### Docker on macOS
 

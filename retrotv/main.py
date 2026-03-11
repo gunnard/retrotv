@@ -48,18 +48,12 @@ def init():
     click.echo("\n✅ Initialization complete!")
 
 
-@main.group()
-def cli():
-    """CLI commands."""
-    pass
-
-
 from retrotv.cli import config as config_cmd, library, guide, schedule, quick_build
-cli.add_command(config_cmd, name="config")
-cli.add_command(library)
-cli.add_command(guide)
-cli.add_command(schedule)
-cli.add_command(quick_build, name="quick-build")
+main.add_command(config_cmd, name="config")
+main.add_command(library)
+main.add_command(guide)
+main.add_command(schedule)
+main.add_command(quick_build, name="quick-build")
 
 
 if __name__ == "__main__":
